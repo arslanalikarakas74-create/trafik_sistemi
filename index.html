@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+
+<html lang="tr">
+
+<head>
+
+  <meta charset="UTF-8" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
+  <title>Akıllı Trafik Tahmini</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+
+    :root {
+
+      --bg: #eef4f7;
+
+      --panel: rgba(255, 255, 255, 0.92);
+
+      --panel-strong: #ffffff;
+
+      --text: #0f172a;
+
+      --muted: #64748b;
+
+      --border: rgba(15, 23, 42, 0.08);
+
+      --shadow: 0 20px 50px rgba(2, 6, 23, 0.12);
+
+      --teal: #0f766e;
+
+      --blue: #0284c7;
+
+      --red: #ef4444;
+
+      --success: #16a34a;
+
+      --warning: #f59e0b;
+
+    }
+
+
+
+    * { box-sizing: border-box; }
+
+    html, body {
+
+      margin: 0;
+
+      width: 100%;
+
+      height: 100%;
+
+      font-family: 'Inter', sans-serif;
+
+      background:
+
+        radial-gradient(circle at top left, rgba(15, 118, 110, 0.16), transparent 28%),
+
+        radial-gradient(circle at bottom right, rgba(2, 132, 199, 0.12), transparent 24%),
+
+        var(--bg);
+
+      color: var(--text);
+
+      overflow: hidden;
+
+    }
+
+
+
+    body::before {
+
+      content: '';
+
+      position: fixed;
+
+      inset: 0;
+
+      pointer-events: none;
+
+      background-image: linear-gradient(rgba(255,255,255,0.18) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.18) 1px, transparent 1px);
+
+      background-size: 32px 32px;
+
+      opacity: 0.35;
+
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,0.4), transparent 72%);
+
+    }
+
+
+
+    .app {
+
+      position: relative;
+
+      width: 100%;
+
+      height: 100%;
+
+      display: flex;
+
+      flex-direction: column;
+
+    }
+
+
+
+    .topbar {
+
+      position: relative;
+
+      z-index: 10;
+
+      padding: 18px 18px 12px;
+
+      display: flex;
+
+      gap: 12px;
+
+      align-items: stretch;
+
+    }
+
+
+
+    .brand, .api-card {
+
+      background: var(--panel);
+
+      border: 1px solid var(--border);
+
+      border-radius: 22px;
+
+      box-shadow: var(--shadow);
+
+      backdrop-filter: blur(18px);
+
+    }
+
+
+
+    .brand {
+
+      flex: 1;
+
+      padding: 16px;
+
+    }
+
+
+
+    .eyebrow {
+
+      display: inline-flex;
+
+      align-items: center;
+
+      gap: 8px;
+
+      font-size: 12px;
+
+      font-weight: 700;
+
+      letter-spacing: 0.08em;
+
+      text-transform: uppercase;
+
+      color: var(--teal);
+
+      margin-bottom: 8px;
+
+    }
+
+
+
+    .eyebrow::before {
+
+      content: '';
+
+      width: 8px;
+
+      height: 8px;
+
+      border-radius: 999px;
+
+      background: linear-gradient(135deg, var(--teal), #10b981);
+
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
+
+    }
+
+
+
+    .title {
+
+      margin: 0;
+
+      font-size: 20px;
+
+      line-height: 1.1;
+
+      font-weight: 800;
+
+      letter-spacing: -0.03em;
+
+    }
+
+
+
+    .subtitle {
+
+      margin: 8px 0 0;
+
+      font-size: 13px;
+
+      color: var(--muted);
+
+      line-height: 1.5;
+
+    }
+
+
+
+    .api-card {
+
+      width: 170px;
+
+      padding: 14px;
+
+      display: flex;
+
+      flex-direction: column;
+
+      gap: 8px;
+
+    }
+
+
+
+    .api-card label {
+
+      font-size: 12px;
+
+      color: var(--muted);
+
+      font-weight: 600;
+
+    }
+
+
+
+    .api-card input {
+
+      width: 100%;
+
+      border: 1px solid var(--border);
+
+      border-radius: 14px;
+
+      padding: 10px 12px;
+
+      font: inherit;
+
+      font-size: 12px;
+
+      color: var(--text);
+
+      outline: none;
+
+      background: rgba(255, 255, 255, 0.98);
+
+    }
+
+
+
+    .map-wrap {
+
+      position: relative;
+
+      flex: 1;
+
+      margin: 0 14px 14px;
+
+      border-radius: 30px;
+
+      overflow: hidden;
+
+      border: 1px solid rgba(255,255,255,0.7);
+
+      box-shadow: var(--shadow);
+
+    }
+
+
+
+    #map {
+
+      width: 100%;
+
+      height: 100%;
+
+      min-height: 420px;
+
+      background: #dbeafe;
+
+    }
+
+
+
+    .floating-hint {
+
+      position: absolute;
+
+      left: 16px;
+
+      right: 16px;
+
+      top: 16px;
+
+      z-index: 400;
+
+      display: flex;
+
+      gap: 10px;
+
+      pointer-events: none;
+
+    }
+
+
+
+    .hint-pill {
+
+      flex: 1;
+
+      background: rgba(255, 255, 255, 0.95);
+
+      border: 1px solid rgba(15, 23, 42, 0.08);
+
+      border-radius: 16px;
+
+      padding: 10px 12px;
+
+      box-shadow: 0 12px 30px rgba(2, 6, 23, 0.10);
+
+      font-size: 12px;
+
+      color: var(--muted);
+
+    }
+
+
+
+    .hint-pill strong {
+
+      display: block;
+
+      color: var(--text);
+
+      font-size: 13px;
+
+      margin-bottom: 2px;
+
+    }
+
+
+
+    .sheet {
+
+      position: relative;
+
+      z-index: 20;
+
+      background: var(--panel-strong);
+
+      border-radius: 28px 28px 0 0;
+
+      box-shadow: 0 -24px 60px rgba(2, 6, 23, 0.14);
+
+      border-top: 1px solid rgba(255,255,255,0.75);
+
+      padding: 10px 18px 18px;
+
+      max-height: 44vh;
+
+      overflow-y: auto;
+
+    }
+
+
+
+    .sheet-handle {
+
+      width: 54px;
+
+      height: 5px;
+
+      margin: 0 auto 14px;
+
+      border-radius: 999px;
+
+      background: #cbd5e1;
+
+    }
+
+
+
+    .grid {
+
+      display: grid;
+
+      grid-template-columns: 1fr 1fr;
+
+      gap: 12px;
+
+    }
+
+
+
+    .card {
+
+      background: linear-gradient(180deg, #fff, #fbfdff);
+
+      border: 1px solid var(--border);
+
+      border-radius: 22px;
+
+      padding: 14px;
+
+      box-shadow: 0 8px 24px rgba(2, 6, 23, 0.05);
+
+    }
+
+
+
+    .card .label {
+
+      display: flex;
+
+      align-items: center;
+
+      gap: 8px;
+
+      font-size: 12px;
+
+      font-weight: 700;
+
+      text-transform: uppercase;
+
+      letter-spacing: 0.08em;
+
+      color: var(--muted);
+
+      margin-bottom: 10px;
+
+    }
+
+
+
+    .dot {
+
+      width: 10px;
+
+      height: 10px;
+
+      border-radius: 50%;
+
+      background: var(--blue);
+
+      box-shadow: 0 0 0 4px rgba(2, 132, 199, 0.12);
+
+    }
+
+
+
+    .dot.red {
+
+      background: var(--red);
+
+      box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12);
+
+    }
+
+
+
+    .coord, .datetime {
+
+      font-size: 14px;
+
+      line-height: 1.5;
+
+      font-weight: 600;
+
+      color: var(--text);
+
+      word-break: break-word;
+
+    }
+
+
+
+    .controls {
+
+      display: grid;
+
+      grid-template-columns: 1fr 1fr;
+
+      gap: 12px;
+
+      margin-top: 12px;
+
+    }
+
+
+
+    .field {
+
+      display: flex;
+
+      flex-direction: column;
+
+      gap: 8px;
+
+    }
+
+
+
+    .field label {
+
+      font-size: 12px;
+
+      font-weight: 700;
+
+      color: var(--muted);
+
+      text-transform: uppercase;
+
+      letter-spacing: 0.06em;
+
+    }
+
+
+
+    .field input {
+
+      border: 1px solid var(--border);
+
+      background: #fff;
+
+      border-radius: 16px;
+
+      padding: 14px 14px;
+
+      font: inherit;
+
+      color: var(--text);
+
+      outline: none;
+
+    }
+
+
+
+    .actions {
+
+      display: flex;
+
+      gap: 12px;
+
+      margin-top: 14px;
+
+      align-items: center;
+
+    }
+
+
+
+    .button {
+
+      border: 0;
+
+      border-radius: 18px;
+
+      padding: 15px 18px;
+
+      font: inherit;
+
+      font-weight: 800;
+
+      color: white;
+
+      background: linear-gradient(135deg, var(--teal), #115e59);
+
+      box-shadow: 0 16px 32px rgba(15, 118, 110, 0.26);
+
+      cursor: pointer;
+
+      flex: 1;
+
+    }
+
+
+
+    .button:disabled {
+
+      opacity: 0.7;
+
+      cursor: not-allowed;
+
+      box-shadow: none;
+
+    }
+
+
+
+    .ghost {
+
+      border: 1px solid var(--border);
+
+      background: rgba(255,255,255,0.92);
+
+      color: var(--text);
+
+      box-shadow: none;
+
+      flex: 0 0 auto;
+
+    }
+
+
+
+    .result {
+
+      margin-top: 14px;
+
+      padding: 16px;
+
+      border-radius: 22px;
+
+      background: linear-gradient(135deg, #0f766e, #115e59);
+
+      color: white;
+
+      box-shadow: 0 18px 40px rgba(15, 118, 110, 0.28);
+
+      display: none;
+
+    }
+
+
+
+    .result.visible {
+
+      display: block;
+
+      animation: pop .24s ease-out;
+
+    }
+
+
+
+    .result h3 {
+
+      margin: 0 0 12px;
+
+      font-size: 18px;
+
+    }
+
+
+
+    .metrics {
+
+      display: grid;
+
+      grid-template-columns: repeat(3, 1fr);
+
+      gap: 10px;
+
+    }
+
+
+
+    .metric {
+
+      background: rgba(255,255,255,0.14);
+
+      border-radius: 16px;
+
+      padding: 12px;
+
+    }
+
+
+
+    .metric .k {
+
+      font-size: 12px;
+
+      color: rgba(255,255,255,0.78);
+
+      margin-bottom: 6px;
+
+    }
+
+
+
+    .metric .v {
+
+      font-size: 18px;
+
+      font-weight: 800;
+
+    }
+
+
+
+    .toast {
+
+      position: fixed;
+
+      left: 50%;
+
+      bottom: 18px;
+
+      transform: translateX(-50%) translateY(140%);
+
+      background: rgba(15, 23, 42, 0.96);
+
+      color: white;
+
+      border-radius: 16px;
+
+      padding: 14px 16px;
+
+      box-shadow: 0 18px 36px rgba(2, 6, 23, 0.24);
+
+      transition: transform .24s ease;
+
+      z-index: 9999;
+
+      max-width: min(92vw, 520px);
+
+      font-size: 14px;
+
+    }
+
+
+
+    .toast.show {
+
+      transform: translateX(-50%) translateY(0);
+
+    }
+
+
+
+    .loader {
+
+      position: fixed;
+
+      inset: 0;
+
+      display: none;
+
+      align-items: center;
+
+      justify-content: center;
+
+      background: rgba(15, 23, 42, 0.18);
+
+      backdrop-filter: blur(3px);
+
+      z-index: 9000;
+
+    }
+
+
+
+    .loader.show {
+
+      display: flex;
+
+    }
+
+
+
+    .spinner {
+
+      width: 62px;
+
+      height: 62px;
+
+      border-radius: 50%;
+
+      border: 5px solid rgba(255,255,255,0.32);
+
+      border-top-color: white;
+
+      animation: spin 1s linear infinite;
+
+      box-shadow: 0 12px 30px rgba(2, 6, 23, 0.18);
+
+    }
+
+
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @keyframes pop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+
+
+    @media (max-width: 860px) {
+
+      .topbar {
+
+        flex-direction: column;
+
+      }
+
+
+
+      .api-card {
+
+        width: 100%;
+
+      }
+
+    }
+
+
+
+    @media (max-width: 640px) {
+
+      .topbar {
+
+        padding: 14px 14px 10px;
+
+      }
+
+
+
+      .map-wrap {
+
+        margin: 0 10px 10px;
+
+        border-radius: 24px;
+
+      }
+
+
+
+      .sheet {
+
+        max-height: 48vh;
+
+        padding: 8px 14px 16px;
+
+      }
+
+
+
+      .grid, .controls, .metrics {
+
+        grid-template-columns: 1fr;
+
+      }
+
+
+
+      .actions {
+
+        flex-direction: column;
+
+      }
+
+    }
+
+  </style>
+
+</head>
+
+<body>
+
+  <div class="app">
+
+    <div class="topbar">
+
+      <div class="brand">
+
+        <div class="eyebrow">Yapay Zeka Destekli Rota Analizi</div>
+
+        <h1 class="title">Akıllı Trafik Tahmini</h1>
+
+        <p class="subtitle">Haritaya dokunarak başlangıç ve varış noktalarını seçin. Ardından tarih ve saati belirleyip backend üzerinden süre tahmini alın.</p>
+
+      </div>
+
+      <div class="api-card">
+
+        <label for="apiUrl">API Base URL</label>
+
+        <input id="apiUrl" value="http://127.0.0.1:8000" autocomplete="off" spellcheck="false" />
+
+      </div>
+
+    </div>
+
+
+
+    <div class="map-wrap">
+
+      <div class="floating-hint">
+
+        <div class="hint-pill"><strong>1. Başlangıç</strong>Mavi pin ile ilk noktayı seçin.</div>
+
+        <div class="hint-pill"><strong>2. Varış</strong>Kırmızı pin ile ikinci noktayı seçin.</div>
+
+      </div>
+
+      <div id="map"></div>
+
+    </div>
+
+
+
+    <div class="sheet">
+
+      <div class="sheet-handle"></div>
+
+
+
+      <div class="grid">
+
+        <div class="card">
+
+          <div class="label"><span class="dot"></span> Başlangıç</div>
+
+          <div id="originText" class="coord">Haritadan seçin</div>
+
+        </div>
+
+        <div class="card">
+
+          <div class="label"><span class="dot red"></span> Varış</div>
+
+          <div id="destinationText" class="coord">Haritadan seçin</div>
+
+        </div>
+
+      </div>
+
+
+
+      <div class="controls">
+
+        <div class="field">
+
+          <label for="travelDate">Tarih</label>
+
+          <input id="travelDate" type="date" />
+
+        </div>
+
+        <div class="field">
+
+          <label for="travelTime">Saat</label>
+
+          <input id="travelTime" type="time" />
+
+        </div>
+
+      </div>
+
+
+
+      <div class="actions">
+
+        <button id="predictBtn" class="button">Süreyi Tahmin Et</button>
+
+        <button id="resetBtn" class="button ghost" type="button">Sıfırla</button>
+
+      </div>
+
+
+
+      <div id="result" class="result" aria-live="polite">
+
+        <h3>Tahmin Sonucu</h3>
+
+        <div class="metrics">
+
+          <div class="metric">
+
+            <div class="k">Süre</div>
+
+            <div id="minutesValue" class="v">-</div>
+
+          </div>
+
+          <div class="metric">
+
+            <div class="k">Mesafe</div>
+
+            <div id="distanceValue" class="v">-</div>
+
+          </div>
+
+          <div class="metric">
+
+            <div class="k">Güven</div>
+
+            <div id="confidenceValue" class="v">-</div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+
+  <div id="toast" class="toast"></div>
+
+  <div id="loader" class="loader"><div class="spinner"></div></div>
+
+
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+
+    const turkeyBounds = L.latLngBounds(
+
+      L.latLng(36.0, 26.0),
+
+      L.latLng(42.0, 45.0)
+
+    );
+
+    const defaultCenter = [39.9334, 32.8597];
+
+    const map = L.map('map', {
+
+      zoomControl: false,
+
+      maxBounds: turkeyBounds,
+
+      maxBoundsViscosity: 1.0,
+
+    }).setView(defaultCenter, 6.2);
+
+
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+
+      maxZoom: 19,
+
+      attribution: '&copy; OpenStreetMap katkıcıları'
+
+    }).addTo(map);
+
+
+
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+
+
+    let origin = null;
+
+    let destination = null;
+
+    let originMarker = null;
+
+    let destinationMarker = null;
+
+
+
+    const originText = document.getElementById('originText');
+
+    const destinationText = document.getElementById('destinationText');
+
+    const result = document.getElementById('result');
+
+    const minutesValue = document.getElementById('minutesValue');
+
+    const distanceValue = document.getElementById('distanceValue');
+
+    const confidenceValue = document.getElementById('confidenceValue');
+
+    const toast = document.getElementById('toast');
+
+    const loader = document.getElementById('loader');
+
+    const predictBtn = document.getElementById('predictBtn');
+
+    const resetBtn = document.getElementById('resetBtn');
+
+    const travelDate = document.getElementById('travelDate');
+
+    const travelTime = document.getElementById('travelTime');
+
+    const apiUrl = document.getElementById('apiUrl');
+
+
+
+    const now = new Date();
+
+    travelDate.value = now.toISOString().slice(0, 10);
+
+    travelTime.value = now.toTimeString().slice(0, 5);
+
+    apiUrl.value = window.location.origin && window.location.origin !== 'null'
+
+      ? window.location.origin
+
+      : apiUrl.value;
+
+
+
+    function showToast(message) {
+
+      toast.textContent = message;
+
+      toast.classList.add('show');
+
+      clearTimeout(showToast.timer);
+
+      showToast.timer = setTimeout(() => toast.classList.remove('show'), 2600);
+
+    }
+
+
+
+    function setLoading(state) {
+
+      loader.classList.toggle('show', state);
+
+      predictBtn.disabled = state;
+
+    }
+
+
+
+    function createMarker(point, color) {
+
+      return L.circleMarker(point, {
+
+        radius: 10,
+
+        color,
+
+        fillColor: color,
+
+        fillOpacity: 1,
+
+        weight: 3,
+
+      }).addTo(map);
+
+    }
+
+
+
+    function updateMapBounds() {
+
+      if (origin && destination) {
+
+        const bounds = L.latLngBounds([origin, destination]);
+
+        map.fitBounds(bounds.pad(0.22));
+
+      } else if (origin) {
+
+        map.setView(origin, Math.max(map.getZoom(), 12));
+
+      }
+
+    }
+
+
+
+    function updateUI() {
+
+      originText.textContent = origin ? `${origin[0].toFixed(5)}, ${origin[1].toFixed(5)}` : 'Haritadan seçin';
+
+      destinationText.textContent = destination ? `${destination[0].toFixed(5)}, ${destination[1].toFixed(5)}` : 'Haritadan seçin';
+
+    }
+
+
+
+    function isWithinTurkey(point) {
+
+      return point[0] >= 36 && point[0] <= 42 && point[1] >= 26 && point[1] <= 45;
+
+    }
+
+
+
+    map.on('click', (event) => {
+
+      const point = [event.latlng.lat, event.latlng.lng];
+
+      if (!isWithinTurkey(point)) {
+
+        showToast('Lütfen Türkiye sınırları içinde bir nokta seçin.');
+
+        return;
+
+      }
+
+      if (!origin || (origin && destination)) {
+
+        origin = point;
+
+        destination = null;
+
+        if (originMarker) map.removeLayer(originMarker);
+
+        if (destinationMarker) {
+
+          map.removeLayer(destinationMarker);
+
+          destinationMarker = null;
+
+        }
+
+        originMarker = createMarker(point, '#0284c7');
+
+      } else {
+
+        destination = point;
+
+        if (destinationMarker) map.removeLayer(destinationMarker);
+
+        destinationMarker = createMarker(point, '#ef4444');
+
+      }
+
+      updateUI();
+
+      updateMapBounds();
+
+    });
+
+
+
+    resetBtn.addEventListener('click', () => {
+
+      if (originMarker) map.removeLayer(originMarker);
+
+      if (destinationMarker) map.removeLayer(destinationMarker);
+
+      originMarker = null;
+
+      destinationMarker = null;
+
+      origin = null;
+
+      destination = null;
+
+      result.classList.remove('visible');
+
+      updateUI();
+
+      map.setView(defaultCenter, 6.2);
+
+    });
+
+
+
+    function buildDateTime() {
+
+      const date = travelDate.value;
+
+      const time = travelTime.value;
+
+      if (!date || !time) {
+
+        throw new Error('Tarih ve saat seçin.');
+
+      }
+
+      return new Date(`${date}T${time}:00`);
+
+    }
+
+
+
+    function parseNumber(value) {
+
+      return Number.isFinite(value) ? value : 0;
+
+    }
+
+
+
+    predictBtn.addEventListener('click', async () => {
+
+      if (!origin || !destination) {
+
+        showToast('Önce başlangıç ve varış noktalarını seçin.');
+
+        return;
+
+      }
+
+
+
+      let requestDate;
+
+      try {
+
+        requestDate = buildDateTime();
+
+      } catch (error) {
+
+        showToast(error.message);
+
+        return;
+
+      }
+
+
+
+      const controller = new AbortController();
+
+      const timeout = setTimeout(() => controller.abort(), 20000);
+
+
+
+      setLoading(true);
+
+      try {
+
+        const response = await fetch(`${apiUrl.value.replace(/\/$/, '')}/api/v1/predict-duration`, {
+
+          method: 'POST',
+
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+
+          body: JSON.stringify({
+
+            origin_latitude: origin[0],
+
+            origin_longitude: origin[1],
+
+            destination_latitude: destination[0],
+
+            destination_longitude: destination[1],
+
+            request_datetime: requestDate.toISOString(),
+
+          }),
+
+          signal: controller.signal,
+
+        });
+
+
+
+        const rawBody = await response.text();
+
+        let payload = {};
+
+        try {
+
+          payload = rawBody ? JSON.parse(rawBody) : {};
+
+        } catch (_) {
+
+          payload = { message: rawBody };
+
+        }
+
+        if (!response.ok) {
+
+          const validationDetail = Array.isArray(payload.detail)
+
+            ? payload.detail.map((item) => item.msg || item.message || JSON.stringify(item)).join(' | ')
+
+            : '';
+
+          throw new Error(payload.message || validationDetail || `Sunucu hatası oluştu (${response.status}).`);
+
+        }
+
+
+
+        const data = payload.data || {};
+
+        minutesValue.textContent = `${parseNumber(data.estimated_minutes).toFixed(1)} dk`;
+
+        distanceValue.textContent = `${parseNumber(data.distance_km).toFixed(2)} km`;
+
+        confidenceValue.textContent = `%${(parseNumber(data.confidence_score) * 100).toFixed(1)}`;
+
+        result.classList.add('visible');
+
+      } catch (error) {
+
+        if (error.name === 'AbortError') {
+
+          showToast('İstek zaman aşımına uğradı.');
+
+        } else {
+
+          showToast(error.message || 'Ağ hatası oluştu.');
+
+        }
+
+      } finally {
+
+        clearTimeout(timeout);
+
+        setLoading(false);
+
+      }
+
+    });
+
+
+
+    updateUI();
+
+  </script>
+
+</body>
+
+</html>
